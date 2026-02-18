@@ -6,9 +6,17 @@
 - **API**: REST JSON, scooter IDs follow pattern sc-NNNN
 
 ## Running the Project
+Quick start (both backend + frontend):
+```bash
+./run.sh
+```
+
+Or manually:
 1. Start the Go backend: `go run main.go` (serves on :8080)
 2. Start the Flutter web app: `flutter run -d chrome`
 3. The Flutter app connects to `http://localhost:8080/api`
+
+`run.sh` starts the Go server, waits for it to be ready, then launches Flutter in Chrome. When you quit Flutter (`q`), it stops the server automatically.
 
 ## Go Backend
 
