@@ -8,7 +8,7 @@ This is a sample codebase for practicing AI-assisted development with [Claude Co
 
 - **Go backend** (`main.go`) — REST API with chi router for scooter operations (unlock, lock, status)
 - **Flutter mobile app** (`lib/`) — Screens, widgets, and services for the rider app
-- **CLAUDE.md** — Team conventions and coding standards (the "onboarding doc" for Claude Code)
+- **CLAUDE.md** — Team conventions and coding standards (Claude Jet's "onboarding manual")
 - **Path-scoped rules** (`.claude/rules/`) — Language-specific rules for Go and Flutter
 
 ## Getting Started
@@ -43,11 +43,15 @@ Ask context-aware questions about the codebase:
 Why does the scooter map use a sync.RWMutex instead of a regular Mutex?
 ```
 
-### Exercise 3: Plan Mode
-Use `Shift+Tab` or type `/plan` to review Claude's approach before it writes code:
+### Exercise 3: Add a Feature (with Plan Mode)
+Use `Shift+Tab` or type `/plan` to review Claude Jet's approach before it writes code:
 ```
-Add a new endpoint POST /api/v1/scooters/{id}/report that lets riders report a damaged scooter.
+Add a new endpoint POST /api/v1/scooters/{id}/report that lets riders report a damaged scooter. Include the handler, request/response types, and input validation. Add it to the existing router.
 ```
+
+After Claude Jet generates the code, review what it got **right** (chi router, slog, error wrapping) and what it **missed** (input validation? tests? battery check?). These gaps are what make CLAUDE.md a living document.
+
+**Key takeaway**: Add verification commands to your CLAUDE.md. Instead of just "write tests," add: *"After implementing any handler, run `go test ./...` and ensure all tests pass."* This lets Claude Jet check its own work — the #1 best practice from Anthropic's engineering teams.
 
 ### Exercise 4: Improve CLAUDE.md
 Run `/init` to see what Claude generates, then compare with the existing `CLAUDE.md`. What's missing? What's wrong?
