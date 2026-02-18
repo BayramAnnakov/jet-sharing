@@ -46,7 +46,7 @@ Why does the scooter map use a sync.RWMutex instead of a regular Mutex?
 ### Exercise 3: Add a Feature (with Plan Mode)
 Use `Shift+Tab` or type `/plan` to review Claude Jet's approach before it writes code:
 ```
-Add a new endpoint POST /api/v1/scooters/{id}/report that lets riders report a damaged scooter. Include the handler, request/response types, and input validation. Add it to the existing router.
+Add a new endpoint POST /api/scooters/{id}/report that lets riders report a damaged scooter. Include the handler, request/response types, and input validation. Add it to the existing router.
 ```
 
 After Claude Jet generates the code, review what it got **right** (chi router, slog, error wrapping) and what it **missed** (input validation? tests? battery check?). These gaps are what make CLAUDE.md a living document.
