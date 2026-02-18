@@ -3,7 +3,8 @@ import 'package:http/http.dart' as http;
 import '../models/scooter.dart';
 
 class ScooterService {
-  static const _baseUrl = 'https://api.jetsharing.local/v1';
+  // iOS simulator uses localhost to reach the host machine.
+  static const _baseUrl = 'http://localhost:8080/api';
 
   final http.Client _client;
 
@@ -14,15 +15,8 @@ class ScooterService {
     required double longitude,
     required double radiusKm,
   }) async {
-    final uri = Uri.parse('$_baseUrl/scooters/nearby').replace(
-      queryParameters: {
-        'lat': latitude.toString(),
-        'lng': longitude.toString(),
-        'radius': radiusKm.toString(),
-      },
-    );
+    final uri = Uri.parse('$_baseUrl/scooters');
 
-    // BUG: No timeout — hangs forever if server is slow.
     final response = await _client.get(uri, headers: _defaultHeaders());
 
     if (response.statusCode != 200) {

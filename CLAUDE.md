@@ -1,9 +1,14 @@
 # Jet Sharing — Team Conventions
 
 ## Stack
-- **Backend**: Go 1.26, chi router (v5), PostgreSQL, slog logger
-- **Mobile**: Flutter 3.29, Dart 3.6, Riverpod, go_router
+- **Backend**: Go 1.26, chi router (v5), in-memory store, slog logger
+- **Frontend**: Flutter 3.41+, Dart 3.11+, Riverpod, go_router (runs as web app via `flutter run -d chrome`)
 - **API**: REST JSON, scooter IDs follow pattern sc-NNNN
+
+## Running the Project
+1. Start the Go backend: `go run main.go` (serves on :8080)
+2. Start the Flutter web app: `flutter run -d chrome`
+3. The Flutter app connects to `http://localhost:8080/api`
 
 ## Go Backend
 
@@ -20,13 +25,14 @@
 - Handlers in handlers/ package (but for this demo, main.go is fine)
 - Business logic in service/ package
 - Keep main.go focused on wiring: routes, middleware, server startup
+- CORS middleware enabled for local development (allows Flutter web to call the API)
 
 ### Testing
 - Table-driven tests with descriptive names
 - Use httptest for handler tests
 - Test names: Test_handleVerbNoun_condition (e.g., Test_handleUnlockScooter_batteryTooLow)
 
-## Flutter Mobile App
+## Flutter App
 
 ### Architecture
 - Feature-based folders: lib/screens/, lib/widgets/, lib/services/, lib/models/

@@ -17,19 +17,22 @@ import (
 
 // Scooter represents an electric scooter in the fleet.
 type Scooter struct {
-	ID       string  `json:"id"`
-	Location string  `json:"location"`
-	Battery  int     `json:"battery"` // percentage 0-100
-	Status   string  `json:"status"`  // "available", "in_use", "maintenance"
+	ID             string  `json:"id"`
+	Name           string  `json:"name"`
+	Latitude       float64 `json:"latitude"`
+	Longitude      float64 `json:"longitude"`
+	BatteryLevel   int     `json:"battery_level"` // percentage 0-100
+	Status         string  `json:"status"`        // "available", "in_use", "maintenance"
+	PricePerMinute float64 `json:"price_per_minute"`
 }
 
 var (
 	mu       sync.RWMutex
 	scooters = map[string]*Scooter{
-		"sc-1001": {ID: "sc-1001", Location: "Av. Paulista & Rua Augusta", Battery: 87, Status: "available"},
-		"sc-1002": {ID: "sc-1002", Location: "Praça da Sé", Battery: 42, Status: "available"},
-		"sc-1003": {ID: "sc-1003", Location: "Parque Ibirapuera", Battery: 15, Status: "maintenance"},
-		"sc-1004": {ID: "sc-1004", Location: "Pinheiros", Battery: 95, Status: "in_use"},
+		"sc-1001": {ID: "sc-1001", Name: "Av. Paulista & Rua Augusta", Latitude: -23.5613, Longitude: -46.6560, BatteryLevel: 87, Status: "available", PricePerMinute: 0.50},
+		"sc-1002": {ID: "sc-1002", Name: "Praça da Sé", Latitude: -23.5503, Longitude: -46.6340, BatteryLevel: 42, Status: "available", PricePerMinute: 0.50},
+		"sc-1003": {ID: "sc-1003", Name: "Parque Ibirapuera", Latitude: -23.5874, Longitude: -46.6576, BatteryLevel: 15, Status: "maintenance", PricePerMinute: 0.50},
+		"sc-1004": {ID: "sc-1004", Name: "Pinheiros", Latitude: -23.5670, Longitude: -46.6914, BatteryLevel: 95, Status: "in_use", PricePerMinute: 0.50},
 	}
 )
 
@@ -41,6 +44,7 @@ func main() {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
+	r.Use(corsMiddleware)
 
 	r.Get("/health", handleHealthCheck)
 	r.Route("/api/scooters", func(r chi.Router) {
@@ -106,7 +110,7 @@ func handleUnlockScooter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if scooter.Battery < 10 {
+	if scooter.BatteryLevel < 10 {
 		writeError(w, http.StatusBadRequest, "battery too low for ride")
 		return
 	}
@@ -115,7 +119,7 @@ func handleUnlockScooter(w http.ResponseWriter, r *http.Request) {
 	// paymentOk, err := verifyPayment(r.Context(), userID)
 
 	scooter.Status = "in_use"
-	slog.Info("scooter unlocked", "id", id, "battery", scooter.Battery)
+	slog.Info("scooter unlocked", "id", id, "battery", scooter.BatteryLevel)
 	writeJSON(w, http.StatusOK, scooter)
 }
 
@@ -154,6 +158,19 @@ func findScooter(_ context.Context, id string) (*Scooter, error) {
 }
 
 var ErrScooterNotFound = fmt.Errorf("scooter not found")
+
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 // writeJSON sends a JSON response with the given status code.
 func writeJSON(w http.ResponseWriter, status int, data any) {
