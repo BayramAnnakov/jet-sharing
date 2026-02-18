@@ -106,7 +106,7 @@ class ScooterBottomSheet extends StatelessWidget {
         const Icon(Icons.attach_money, color: Colors.blue),
         const SizedBox(width: 8),
         Text(
-          '${scooter.pricePerMinute.toStringAsFixed(2)} AZN/min',
+          'R\$ ${scooter.pricePerMinute.toStringAsFixed(2)}/min',
           style: const TextStyle(fontSize: 16),
         ),
       ],

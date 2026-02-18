@@ -53,7 +53,7 @@ class ScooterService {
     }
   }
 
-  // BUG: Auth token is hardcoded, not refreshed, not read from secure storage.
+  // TODO: Read token from flutter_secure_storage instead of hardcoding.
   Map<String, String> _defaultHeaders() => {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer demo-token-placeholder',

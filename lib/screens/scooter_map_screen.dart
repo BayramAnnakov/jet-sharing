@@ -19,8 +19,8 @@ class _ScooterMapScreenState extends State<ScooterMapScreen> {
   bool _isLoading = true;
   String? _error;
 
-  // Baku city center.
-  static const _bakuCenter = LatLng(40.4093, 49.8671);
+  // São Paulo city center.
+  static const _spCenter = LatLng(-23.5505, -46.6340);
 
   @override
   void initState() {
@@ -36,8 +36,8 @@ class _ScooterMapScreenState extends State<ScooterMapScreen> {
 
     try {
       final scooters = await _scooterService.fetchNearbyScooters(
-        latitude: _bakuCenter.latitude,
-        longitude: _bakuCenter.longitude,
+        latitude: _spCenter.latitude,
+        longitude: _spCenter.longitude,
         radiusKm: 5.0,
       );
 
@@ -151,7 +151,7 @@ class _ScooterMapScreenState extends State<ScooterMapScreen> {
 
     return GoogleMap(
       initialCameraPosition: const CameraPosition(
-        target: _bakuCenter,
+        target: _spCenter,
         zoom: 14.0,
       ),
       markers: _markers,

@@ -26,10 +26,10 @@ type Scooter struct {
 var (
 	mu       sync.RWMutex
 	scooters = map[string]*Scooter{
-		"sc-1001": {ID: "sc-1001", Location: "Nizami St & 28 May", Battery: 87, Status: "available"},
-		"sc-1002": {ID: "sc-1002", Location: "Fountain Square", Battery: 42, Status: "available"},
-		"sc-1003": {ID: "sc-1003", Location: "Baku Boulevard", Battery: 15, Status: "maintenance"},
-		"sc-1004": {ID: "sc-1004", Location: "Heydar Aliyev Center", Battery: 95, Status: "in_use"},
+		"sc-1001": {ID: "sc-1001", Location: "Av. Paulista & Rua Augusta", Battery: 87, Status: "available"},
+		"sc-1002": {ID: "sc-1002", Location: "Praça da Sé", Battery: 42, Status: "available"},
+		"sc-1003": {ID: "sc-1003", Location: "Parque Ibirapuera", Battery: 15, Status: "maintenance"},
+		"sc-1004": {ID: "sc-1004", Location: "Pinheiros", Battery: 95, Status: "in_use"},
 	}
 )
 
