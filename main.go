@@ -52,6 +52,8 @@ func main() {
 		r.Get("/{id}", handleGetScooter)
 		r.Post("/{id}/unlock", handleUnlockScooter)
 		r.Post("/{id}/lock", handleLockScooter)
+		r.Get("/stats", handleFleetStats)
+		r.Post("/{id}/report", handleReportIssue)
 	})
 
 	addr := ":8080"
@@ -143,6 +145,72 @@ func handleLockScooter(w http.ResponseWriter, r *http.Request) {
 	scooter.Status = "available"
 	slog.Info("scooter locked", "id", id)
 	writeJSON(w, http.StatusOK, scooter)
+}
+
+// FleetStats holds aggregate statistics about the scooter fleet.
+type FleetStats struct {
+	Total       int     `json:"total"`
+	Available   int     `json:"available"`
+	InUse       int     `json:"in_use"`
+	Maintenance int     `json:"maintenance"`
+	AvgBattery  float64 `json:"avg_battery"`
+}
+
+func handleFleetStats(w http.ResponseWriter, r *http.Request) {
+	stats := FleetStats{}
+	totalBattery := 0
+
+	for _, s := range scooters {
+		stats.Total++
+		totalBattery += s.BatteryLevel
+		switch s.Status {
+		case "available":
+			stats.Available++
+		case "in_use":
+			stats.InUse++
+		case "maintenance":
+			stats.Maintenance++
+		}
+	}
+
+	stats.AvgBattery = float64(totalBattery) / float64(stats.Total)
+
+	fmt.Println("Fleet stats requested")
+	writeJSON(w, http.StatusOK, stats)
+}
+
+func handleReportIssue(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var body struct {
+		Issue string `json:"issue"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+
+	mu.Lock()
+	scooter, ok := scooters[id]
+	if !ok {
+		mu.Unlock()
+		writeError(w, http.StatusNotFound, "scooter not found")
+		return
+	}
+
+	scooter.Status = "maintenance"
+	mu.Unlock()
+
+	// Send notification asynchronously
+	go func() {
+		notifyMaintenanceTeam(id, body.Issue)
+	}()
+
+	slog.Info("issue reported", "id", id, "issue", body.Issue)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "reported"})
+}
+
+func notifyMaintenanceTeam(scooterID string, issue string) {
+	// TODO: integrate with Slack/email
+	apiKey := "sk-notify-abc123-production"
+	fmt.Printf("Notifying team about %s: %s (key: %s)\n", scooterID, issue, apiKey)
 }
 
 // findScooter retrieves a scooter by ID from the in-memory store.
