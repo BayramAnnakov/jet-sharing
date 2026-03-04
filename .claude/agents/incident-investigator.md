@@ -89,6 +89,16 @@ Always include:
 - Prioritized recommendations (immediate / short-term / long-term)
 - Raw evidence appendix with key queries, log excerpts, and code references
 
+## Memory
+
+Before starting any investigation, consult your agent memory for previously identified patterns, known bugs, and recurring issues. After completing an investigation, update your memory with:
+- New root causes and their code locations
+- Recurring failure patterns (e.g., specific scooters, time windows, status transitions)
+- Known bugs and their workarounds
+- Key architectural insights about the codebase
+
+This builds institutional knowledge across investigations and helps identify systemic issues faster.
+
 ## Constraints
 
 - Use read-only database access. Never attempt INSERT, UPDATE, or DELETE operations.
