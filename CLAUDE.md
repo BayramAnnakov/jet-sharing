@@ -18,6 +18,13 @@ Or manually:
 
 `run.sh` starts the Go server, waits for it to be ready, then launches Flutter in Chrome. When you quit Flutter (`q`), it stops the server automatically.
 
+## Database
+- **Schema reference**: See `DATABASE.md` for full table definitions, status codes, and common queries
+- **Engine**: PostgreSQL (Supabase), connected via MCP or psql
+- Order status codes range from 1 (pending) to 16 (refunded) — see DATABASE.md for the full mapping
+- Always use `order_id::text LIKE '%partial%'` for partial UUID matches
+- `geo_cluster` on scooters must NOT be NULL — scooters without it are invisible to the routing service
+
 ## Go Backend
 
 ### Architecture
