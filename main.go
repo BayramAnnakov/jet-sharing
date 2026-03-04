@@ -52,6 +52,12 @@ func main() {
 		r.Get("/{id}", handleGetScooter)
 		r.Post("/{id}/unlock", handleUnlockScooter)
 		r.Post("/{id}/lock", handleLockScooter)
+		r.Post("/{id}/rides", handleStartRide)
+		r.Post("/{id}/rides/{rideId}/end", handleEndRide)
+	})
+
+	r.Route("/api/rides", func(r chi.Router) {
+		r.Get("/", handleGetRideHistory)
 	})
 
 	addr := ":8080"
