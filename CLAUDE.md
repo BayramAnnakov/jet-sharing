@@ -20,10 +20,14 @@ Or manually:
 
 ## Database
 - **Schema reference**: See `DATABASE.md` for full table definitions, status codes, and common queries
+- **IMPORTANT**: Always read `DATABASE.md` before interpreting status codes. Do NOT guess status meanings.
 - **Engine**: PostgreSQL (Supabase), connected via MCP or psql
-- Order status codes range from 1 (pending) to 16 (refunded) — see DATABASE.md for the full mapping
+- Key status codes: 2=created, 3=scooter_assigned, 4=route_calculated, 5=ride_active, 14=completed, 15=cancelled
 - Always use `order_id::text LIKE '%partial%'` for partial UUID matches
 - `geo_cluster` on scooters must NOT be NULL — scooters without it are invisible to the routing service
+
+## Logs
+- Production logs are in `demos/order-service-logs.txt` (~2000 lines, Order service)
 
 ## Go Backend
 
