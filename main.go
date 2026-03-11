@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -26,6 +28,26 @@ type Scooter struct {
 	PricePerMinute float64 `json:"price_per_minute"`
 }
 
+// DamageReport represents a user-submitted damage or issue report for a scooter.
+type DamageReport struct {
+	ReportID    string `json:"report_id"`
+	ScooterID   string `json:"scooter_id"`
+	Reason      string `json:"reason"`
+	Severity    string `json:"severity"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"created_at"`
+}
+
+var validReasons = map[string]bool{
+	"flat_tire": true, "brake_issue": true, "battery_dead": true,
+	"body_damage": true, "other": true,
+}
+
+var validSeverities = map[string]bool{
+	"low": true, "medium": true, "high": true,
+}
+
 var (
 	mu       sync.RWMutex
 	scooters = map[string]*Scooter{
@@ -34,6 +56,9 @@ var (
 		"sc-1003": {ID: "sc-1003", Name: "Parque Ibirapuera", Latitude: -23.5874, Longitude: -46.6576, BatteryLevel: 15, Status: "maintenance", PricePerMinute: 0.50},
 		"sc-1004": {ID: "sc-1004", Name: "Pinheiros", Latitude: -23.5670, Longitude: -46.6914, BatteryLevel: 95, Status: "in_use", PricePerMinute: 0.50},
 	}
+
+	reportsMu sync.RWMutex
+	reports   = map[string]*DamageReport{}
 )
 
 func main() {
@@ -52,6 +77,7 @@ func main() {
 		r.Get("/{id}", handleGetScooter)
 		r.Post("/{id}/unlock", handleUnlockScooter)
 		r.Post("/{id}/lock", handleLockScooter)
+		r.Post("/{id}/report", handleReportScooterDamage)
 	})
 
 	addr := ":8080"
@@ -143,6 +169,79 @@ func handleLockScooter(w http.ResponseWriter, r *http.Request) {
 	scooter.Status = "available"
 	slog.Info("scooter locked", "id", id)
 	writeJSON(w, http.StatusOK, scooter)
+}
+
+func handleReportScooterDamage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	// validate -> process -> respond
+	var req struct {
+		Reason      string `json:"reason"`
+		Severity    string `json:"severity"`
+		Description string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if !validReasons[req.Reason] {
+		writeError(w, http.StatusBadRequest, "invalid reason: must be one of flat_tire, brake_issue, battery_dead, body_damage, other")
+		return
+	}
+	if !validSeverities[req.Severity] {
+		writeError(w, http.StatusBadRequest, "invalid severity: must be one of low, medium, high")
+		return
+	}
+	if req.Description == "" {
+		writeError(w, http.StatusBadRequest, "description is required")
+		return
+	}
+	if len(req.Description) > 500 {
+		writeError(w, http.StatusBadRequest, "description exceeds 500 characters")
+		return
+	}
+
+	if _, err := findScooter(r.Context(), id); err != nil {
+		slog.Warn("report rejected: scooter not found", "id", id)
+		writeError(w, http.StatusNotFound, "scooter not found")
+		return
+	}
+
+	reportID, err := newUUID()
+	if err != nil {
+		slog.Error("failed to generate report ID", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to create report")
+		return
+	}
+
+	report := &DamageReport{
+		ReportID:    reportID,
+		ScooterID:   id,
+		Reason:      req.Reason,
+		Severity:    req.Severity,
+		Description: req.Description,
+		Status:      "received",
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+	}
+
+	reportsMu.Lock()
+	reports[reportID] = report
+	reportsMu.Unlock()
+
+	slog.Info("damage report received", "scooter_id", id, "severity", req.Severity, "report_id", reportID)
+	writeJSON(w, http.StatusCreated, report)
+}
+
+// newUUID generates a random UUID v4.
+func newUUID() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("newUUID: %w", err)
+	}
+	b[6] = (b[6] & 0x0f) | 0x40 // version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // variant bits
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:]), nil
 }
 
 // findScooter retrieves a scooter by ID from the in-memory store.
