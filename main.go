@@ -30,27 +30,36 @@ type Scooter struct {
 
 // DamageReport represents a user-submitted damage or issue report for a scooter.
 type DamageReport struct {
-	ReportID    string    `json:"report_id"`
-	ScooterID   string    `json:"scooter_id"`
-	Reason      string    `json:"reason"`
-	Severity    string    `json:"severity"`
-	Description string    `json:"description"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
+	ReportID    string `json:"report_id"`
+	ScooterID   string `json:"scooter_id"`
+	Reason      string `json:"reason"`
+	Severity    string `json:"severity"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"created_at"`
 }
 
-var validReasons = map[string]bool{
-	"flat_tire":   true,
-	"brake_issue": true,
-	"battery_dead": true,
-	"body_damage": true,
-	"other":       true,
+// damageReportRequest is the request body for POST /api/scooters/{id}/report.
+type damageReportRequest struct {
+	Reason      string `json:"reason"`
+	Severity    string `json:"severity"`
+	Description string `json:"description"`
 }
 
-var validSeverities = map[string]bool{
-	"low":    true,
-	"medium": true,
-	"high":   true,
+var (
+	validReasons    = map[string]bool{"flat_tire": true, "brake_issue": true, "battery_dead": true, "body_damage": true, "other": true}
+	validSeverities = map[string]bool{"low": true, "medium": true, "high": true}
+)
+
+// newUUID generates a random UUID v4.
+func newUUID() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("newUUID: %w", err)
+	}
+	b[6] = (b[6] & 0x0f) | 0x40 // version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // variant bits
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:]), nil
 }
 
 var (
@@ -177,30 +186,24 @@ func handleLockScooter(w http.ResponseWriter, r *http.Request) {
 func handleReportDamage(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	var req struct {
-		Reason      string `json:"reason"`
-		Severity    string `json:"severity"`
-		Description string `json:"description"`
+	if _, err := findScooter(r.Context(), id); err != nil {
+		slog.Warn("damage report for unknown scooter", "id", id)
+		writeError(w, http.StatusNotFound, "scooter not found")
+		return
 	}
+
+	var req damageReportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	if req.Reason == "" {
-		writeError(w, http.StatusBadRequest, "reason is required")
-		return
-	}
 	if !validReasons[req.Reason] {
-		writeError(w, http.StatusBadRequest, "invalid reason: must be one of flat_tire, brake_issue, battery_dead, body_damage, other")
-		return
-	}
-	if req.Severity == "" {
-		writeError(w, http.StatusBadRequest, "severity is required")
+		writeError(w, http.StatusBadRequest, "reason must be one of: flat_tire, brake_issue, battery_dead, body_damage, other")
 		return
 	}
 	if !validSeverities[req.Severity] {
-		writeError(w, http.StatusBadRequest, "invalid severity: must be one of low, medium, high")
+		writeError(w, http.StatusBadRequest, "severity must be one of: low, medium, high")
 		return
 	}
 	if req.Description == "" {
@@ -209,12 +212,6 @@ func handleReportDamage(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(req.Description) > 500 {
 		writeError(w, http.StatusBadRequest, "description exceeds 500 characters")
-		return
-	}
-
-	if _, err := findScooter(r.Context(), id); err != nil {
-		slog.Warn("damage report: scooter not found", "id", id)
-		writeError(w, http.StatusNotFound, "scooter not found")
 		return
 	}
 
@@ -232,26 +229,15 @@ func handleReportDamage(w http.ResponseWriter, r *http.Request) {
 		Severity:    req.Severity,
 		Description: req.Description,
 		Status:      "received",
-		CreatedAt:   time.Now().UTC(),
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
 	}
 
 	mu.Lock()
 	damageReports[reportID] = report
 	mu.Unlock()
 
-	slog.Info("damage report received", "scooter_id", id, "severity", req.Severity, "report_id", reportID)
+	slog.Info("damage report submitted", "scooter_id", id, "severity", req.Severity, "report_id", reportID)
 	writeJSON(w, http.StatusCreated, report)
-}
-
-// newUUID generates a random UUID v4.
-func newUUID() (string, error) {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", fmt.Errorf("newUUID: %w", err)
-	}
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:]), nil
 }
 
 // findScooter retrieves a scooter by ID from the in-memory store.
