@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -26,6 +28,17 @@ type Scooter struct {
 	PricePerMinute float64 `json:"price_per_minute"`
 }
 
+// DamageReport represents a damage report submitted for a scooter.
+type DamageReport struct {
+	ReportID    string `json:"report_id"`
+	ScooterID   string `json:"scooter_id"`
+	Reason      string `json:"reason"`
+	Severity    string `json:"severity"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"created_at"`
+}
+
 var (
 	mu       sync.RWMutex
 	scooters = map[string]*Scooter{
@@ -34,6 +47,7 @@ var (
 		"sc-1003": {ID: "sc-1003", Name: "Parque Ibirapuera", Latitude: -23.5874, Longitude: -46.6576, BatteryLevel: 15, Status: "maintenance", PricePerMinute: 0.50},
 		"sc-1004": {ID: "sc-1004", Name: "Pinheiros", Latitude: -23.5670, Longitude: -46.6914, BatteryLevel: 95, Status: "in_use", PricePerMinute: 0.50},
 	}
+	damageReports = map[string]*DamageReport{}
 )
 
 func main() {
@@ -52,6 +66,7 @@ func main() {
 		r.Get("/{id}", handleGetScooter)
 		r.Post("/{id}/unlock", handleUnlockScooter)
 		r.Post("/{id}/lock", handleLockScooter)
+		r.Post("/{id}/report", handleReportDamage)
 	})
 
 	addr := ":8080"
@@ -143,6 +158,92 @@ func handleLockScooter(w http.ResponseWriter, r *http.Request) {
 	scooter.Status = "available"
 	slog.Info("scooter locked", "id", id)
 	writeJSON(w, http.StatusOK, scooter)
+}
+
+var (
+	validReasons   = map[string]bool{"flat_tire": true, "brake_issue": true, "battery_dead": true, "body_damage": true, "other": true}
+	validSeverities = map[string]bool{"low": true, "medium": true, "high": true}
+)
+
+func handleReportDamage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	if _, err := findScooter(r.Context(), id); err != nil {
+		slog.Warn("report rejected: scooter not found", "id", id)
+		writeError(w, http.StatusNotFound, "scooter not found")
+		return
+	}
+
+	var req struct {
+		Reason      string `json:"reason"`
+		Severity    string `json:"severity"`
+		Description string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if !validReasons[req.Reason] {
+		writeError(w, http.StatusBadRequest, "reason must be one of: flat_tire, brake_issue, battery_dead, body_damage, other")
+		return
+	}
+	if !validSeverities[req.Severity] {
+		writeError(w, http.StatusBadRequest, "severity must be one of: low, medium, high")
+		return
+	}
+	if req.Description == "" {
+		writeError(w, http.StatusBadRequest, "description is required")
+		return
+	}
+	if len(req.Description) > 500 {
+		writeError(w, http.StatusBadRequest, "description must not exceed 500 characters")
+		return
+	}
+
+	report, err := submitDamageReport(r.Context(), id, req.Reason, req.Severity, req.Description)
+	if err != nil {
+		slog.Error("failed to submit damage report", "id", id, "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to store report")
+		return
+	}
+
+	slog.Info("damage report submitted", "scooter_id", id, "severity", req.Severity, "report_id", report.ReportID)
+	writeJSON(w, http.StatusCreated, report)
+}
+
+// submitDamageReport stores a new damage report for the given scooter.
+func submitDamageReport(_ context.Context, scooterID, reason, severity, description string) (*DamageReport, error) {
+	reportID, err := newUUID()
+	if err != nil {
+		return nil, fmt.Errorf("submitDamageReport: %w", err)
+	}
+
+	report := &DamageReport{
+		ReportID:    reportID,
+		ScooterID:   scooterID,
+		Reason:      reason,
+		Severity:    severity,
+		Description: description,
+		Status:      "received",
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	damageReports[reportID] = report
+	return report, nil
+}
+
+// newUUID generates a random UUID v4.
+func newUUID() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("newUUID: %w", err)
+	}
+	b[6] = (b[6] & 0x0f) | 0x40 // version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // variant bits
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:]), nil
 }
 
 // findScooter retrieves a scooter by ID from the in-memory store.
