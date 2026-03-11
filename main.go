@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 )
 
 // module github.com/jet-sharing/scooter-api
@@ -36,6 +38,25 @@ var (
 	}
 )
 
+// DamageReport represents a user-submitted damage report for a scooter.
+type DamageReport struct {
+	ReportID    string `json:"report_id"`
+	ScooterID   string `json:"scooter_id"`
+	Reason      string `json:"reason"`
+	Severity    string `json:"severity"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"created_at"`
+}
+
+var (
+	reportMu sync.Mutex
+	reports  = map[string]*DamageReport{}
+
+	validReasons    = map[string]bool{"flat_tire": true, "brake_issue": true, "battery_dead": true, "body_damage": true, "other": true}
+	validSeverities = map[string]bool{"low": true, "medium": true, "high": true}
+)
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
@@ -52,6 +73,13 @@ func main() {
 		r.Get("/{id}", handleGetScooter)
 		r.Post("/{id}/unlock", handleUnlockScooter)
 		r.Post("/{id}/lock", handleLockScooter)
+		r.Post("/{id}/report", handleReportDamage)
+		r.Post("/{id}/rides", handleStartRide)
+		r.Post("/{id}/rides/{rideId}/end", handleEndRide)
+	})
+
+	r.Route("/api/rides", func(r chi.Router) {
+		r.Get("/", handleGetRideHistory)
 	})
 
 	addr := ":8080"
@@ -143,6 +171,62 @@ func handleLockScooter(w http.ResponseWriter, r *http.Request) {
 	scooter.Status = "available"
 	slog.Info("scooter locked", "id", id)
 	writeJSON(w, http.StatusOK, scooter)
+}
+
+// handleReportDamage accepts a damage report for a scooter.
+func handleReportDamage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	// Validate scooter exists
+	if _, err := findScooter(r.Context(), id); err != nil {
+		slog.Warn("report for unknown scooter", "id", id)
+		writeError(w, http.StatusNotFound, "scooter not found")
+		return
+	}
+
+	var req struct {
+		Reason      string `json:"reason"`
+		Severity    string `json:"severity"`
+		Description string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if !validReasons[req.Reason] {
+		writeError(w, http.StatusBadRequest, "invalid reason: must be one of flat_tire, brake_issue, battery_dead, body_damage, other")
+		return
+	}
+	if !validSeverities[req.Severity] {
+		writeError(w, http.StatusBadRequest, "invalid severity: must be one of low, medium, high")
+		return
+	}
+	if req.Description == "" {
+		writeError(w, http.StatusBadRequest, "description is required")
+		return
+	}
+	if len(req.Description) > 500 {
+		writeError(w, http.StatusBadRequest, "description exceeds 500 characters")
+		return
+	}
+
+	report := &DamageReport{
+		ReportID:    uuid.New().String(),
+		ScooterID:   id,
+		Reason:      req.Reason,
+		Severity:    req.Severity,
+		Description: req.Description,
+		Status:      "received",
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+	}
+
+	reportMu.Lock()
+	reports[report.ReportID] = report
+	reportMu.Unlock()
+
+	slog.Info("damage report submitted", "scooter_id", id, "severity", req.Severity, "report_id", report.ReportID)
+	writeJSON(w, http.StatusCreated, report)
 }
 
 // findScooter retrieves a scooter by ID from the in-memory store.
